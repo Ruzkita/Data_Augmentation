@@ -1,17 +1,27 @@
 import numpy as np
 import cv2 as cv
-import matplotlib.pyplot as plt
 import os 
+from rich.console import Console
+from rich.panel import Panel
+from rich.prompt import Prompt
+from rich.spinner import Spinner
+from rich.markdown import Markdown
+import time
+import questionary
 
-def bright(imgs, labels, current_dir, bright_amounght):
+console = Console()
+
+def bright(imgs, labels, current_dir, bright_amount):
     '''Aumentar o brilho'''
+
+    bright_amount = int(bright_amount)
 
     for name, path in imgs:
         img = cv.cvtColor(cv.imread(path), cv.COLOR_BGR2HSV)
         h, s, v = cv.split(img)
 
-        v[v > 255 - bright_amounght] = 255
-        v[v <= 255 - bright_amounght] += bright_amounght
+        v[v > 255 - bright_amount] = 255
+        v[v <= 255 - bright_amount] += bright_amount
 
         bright = cv.cvtColor(cv.merge((h, s, v)), cv.COLOR_HSV2BGR)
         img_path = os.path.join(current_dir, name + '_bright.png')
@@ -47,13 +57,15 @@ def blur(imgs, labels, current_dir, kernell):
         with open(label_path, 'w', encoding='utf-8') as f:
             f.write(label_data)
 
-def noise(imgs, labels, current_dir, noise_amounght):
+def noise(imgs, labels, current_dir, noise_amount):
     '''Aplicar ruido gaussiano'''
+
+    noise_amount = float(noise_amount)
 
     for name, path in imgs:
         img = cv.imread(path)
         x, y, _ = img.shape
-        noise = img.astype(np.float32) + np.random.normal(0, noise_amounght*(x+y)/2/640, img.shape).astype(np.float32)
+        noise = img.astype(np.float32) + np.random.normal(0, noise_amount*(x+y)/2/640, img.shape).astype(np.float32)
         img_path = os.path.join(current_dir, name + '_noise.png')
         noise = np.clip(noise, 0, 255).astype(np.uint8)
         cv.imwrite(img_path, noise)
@@ -113,60 +125,77 @@ def UI(imgs, labels, imgs_and_labels):
         input("You dont have the same amounght of images and labes, something must be missing. Press Enter to finish...")
         return None
     if len(imgs) == len(labels) and len(labels) == 0:
-        input("You need to put this file inside a folder with images and labels. Press Enter to finish...")
+        input("No images or labels found in imgs_and_labels folder. Press Enter to finish...")
 
-    for name_i, _ in imgs:
-        for name_l, _ in labels:
-            if name_i != name_l:
-                input("Some of you labels/imgs have different name. You must fix it to continue. Press Enter to finish...")
-                return None
-            
-    KERNELL = 5
-    NOISE = 25
-    BRIGHT = 50
-    
-    gray_c = input("Grayscale? (y/n): ")
+    name_i = {item[0] for item in imgs}
+    name_l = {item[0] for item in labels}
+    if name_i != name_l:
+        print("It seens some of your labels/imgs have different names. Pleas, fix it before continue...")
+        return None
 
-    noise_c = input("Noise? (y/n): ")
-    if noise_c == "y":
-        noise_amounght = input("Insert the amoungth of noise you want or press enter to use the default value: ")
-        if noise_amounght == "":
-            noise_amounght = NOISE
-        else:
-            noise_amounght = float(noise_amounght)
-    
-    bright_c = input("Bright? (y/n): ")
-    if bright_c == "y":
-        bright_amounght = input("Insert the amoungth of bright you want or press enter to use the default value: ")
-        if bright_amounght == "":
-            bright_amounght = BRIGHT
-        else:
-            bright_amounght = float(bright_amounght)
-    
-    flip_c = input("Flip 180º? (y/n): ")
+    console.clear()
 
-    blur_c = input("Blur? (y/n): ")
-    if blur_c == "y":
-        kernell = input("Insert the size of the kernell you want or press enter to use the default value (Ex: 5 to use a 5x5 kernell): ")
-        if kernell == "":
-            kernell = KERNELL
-        else:
-            kernell = int(kernell)
-    
-    if gray_c == "y":
-        gray_scale(imgs, labels, imgs_and_labels)
-    if noise_c == "y":
-        noise(imgs, labels, imgs_and_labels, noise_amounght)
-    if bright_c == "y":
-        bright(imgs, labels, imgs_and_labels, bright_amounght)
-    if flip_c == "y":
-        flip(imgs, labels, imgs_and_labels)
-    if blur_c == "y":
-        blur(imgs, labels, imgs_and_labels, kernell)
+    option = questionary.checkbox(
+        "Which kind of augmentation do you want?",
+        choices=[
+            "Grayscale",
+            "Noise",
+            "Bright",
+            "Flip 180º",
+            "Blur"
+        ]
+    ).ask()
 
+    parameters_default = {
+        "Noise amount": "25",
+        "Bright amount": "50",
+        "Blur kernell": "5"
+    }
     
+
+    while True:
+        console.clear()
+        current_parameters = [f"{key}: {value}" for key, value in parameters_default.items()]
+        current_parameters.append("Confirm and Continue")
+
+        choice = questionary.select(
+            "Select a parameter to edit:",
+            choices = current_parameters
+        ).ask()
+
+        if choice == "Confirm and Continue":
+            break
+        key = choice.split(":")[0]
+
+        new_value = questionary.text(f"Type the new value for {key}:").ask()
+        parameters_default[key] = new_value
+    
+    with console.status("[bold green]Processing...[/bold green]", spinner="dots"):
+    
+        if "Grayscale" in option:
+            gray_scale(imgs, labels, imgs_and_labels)
+        if "Noise" in option:
+            noise(imgs, labels, imgs_and_labels, parameters_default["Noise amount"])
+        if "Bright" in option:
+            bright(imgs, labels, imgs_and_labels, parameters_default["Bright amount"])
+        if "Flip 180º" in option:
+            flip(imgs, labels, imgs_and_labels)
+        if "Blur" in option:
+            blur(imgs, labels, imgs_and_labels, parameters_default["Blur kernell"])
+    
+    console.print("[bold green]Process finished :)[/bold green]")
+    return
+
+def menu():
+    console.clear()
+    console.print(Panel.fit("Data Augmentation Algorithm", subtitle="Main Menu"))
+    console.print("[1] Start Process")
+    console.print("[2] Default Values")
+    console.print("[3] How To Use")
+    console.print("[4] Exit")
 
 def main():
+    console.clear()
     current_dir = os.path.dirname(os.path.abspath(__file__))
     imgs_and_labels = os.path.join(current_dir, 'imgs_and_labels')
     content = os.listdir(imgs_and_labels)
@@ -187,7 +216,46 @@ def main():
     labels.sort(key=lambda x: x[0])
     imgs.sort(key=lambda x: x[0])
 
-    UI(imgs, labels, imgs_and_labels)
+    while True:
+        console.clear()
+        menu()
+        option = Prompt.ask("\nType an option: ")
+        if option == "1":
+            UI(imgs, labels, imgs_and_labels)
+            time.sleep(1)
+
+        elif option == "2":
+            console.clear()
+            console.print(Panel.fit("Data Augmentation Algorithm", subtitle="Default Values"))
+            console.print("\nKernell for Blur: 5x5")
+            console.print("Noise Percentage: 25%")
+            console.print("Bright Level: +50%")
+            console.print("\nPress Enter to continue...")
+            input("")
+            time.sleep(1)
+
+        elif option == "3":
+            console.clear()
+            caminho = os.path.join(os.path.dirname(__file__), "README.md")
+            try:
+                with open(caminho, "r", encoding="utf-8") as f:
+                    markdown = Markdown(f.read())
+                    Console().print(markdown)
+                    time.sleep(1)
+            except FileNotFoundError:
+                Console().print("[red]README.md não encontrado.[/red]")
+            print("\nPress Enter to continue ...")
+            input("")
+            
+
+        elif option == "4":
+            console.clear()
+            break
+        else:
+            console.print("[red]Not an option![/red]")
+            time.sleep(1)
+
+
 
 if __name__ == "__main__":
     main()
