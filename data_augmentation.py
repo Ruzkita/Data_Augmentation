@@ -1,11 +1,15 @@
 import numpy as np
 import cv2 as cv
 import os 
-from rich.console import Console
+import sys
+from rich.console import Console, Group
 from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.spinner import Spinner
 from rich.markdown import Markdown
+from rich.text import Text
+from rich.table import Table
+from rich.status import Status
 import time
 import questionary
 
@@ -36,7 +40,7 @@ def bright(imgs, labels, current_dir, bright_amount):
 
 def blur(imgs, labels, current_dir, kernell):
     '''Adiciona desfoque'''
-
+    kernell = int(kernell)
     kernell_original = kernell
     for name, path in imgs:
         img = cv.imread(path)
@@ -120,19 +124,6 @@ def gray_scale(imgs, labels, current_dir):
             f.write(label_data)
 
 def UI(imgs, labels, imgs_and_labels):
-
-    if len(imgs) != len(labels):
-        input("You dont have the same amounght of images and labes, something must be missing. Press Enter to finish...")
-        return None
-    if len(imgs) == len(labels) and len(labels) == 0:
-        input("No images or labels found in imgs_and_labels folder. Press Enter to finish...")
-
-    name_i = {item[0] for item in imgs}
-    name_l = {item[0] for item in labels}
-    if name_i != name_l:
-        print("It seens some of your labels/imgs have different names. Pleas, fix it before continue...")
-        return None
-
     console.clear()
 
     option = questionary.checkbox(
@@ -194,10 +185,9 @@ def menu():
     console.print("[3] How To Use")
     console.print("[4] Exit")
 
-def main():
+def data_verification():
     console.clear()
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    imgs_and_labels = os.path.join(current_dir, 'imgs_and_labels')
+    imgs_and_labels = get_imgs_and_labels_path()
     content = os.listdir(imgs_and_labels)
 
     imgs = []
@@ -215,13 +205,86 @@ def main():
         
     labels.sort(key=lambda x: x[0])
     imgs.sort(key=lambda x: x[0])
+    
+    img_dict = dict(imgs)
+    label_dict = dict(labels)
 
+    all_names = sorted(set(img_dict.keys()) | set(label_dict.keys()))
+
+    table = Table(title="Data Verification")
+    table.add_column("Image", justify="center")
+    table.add_column("Label", justify="center")
+
+    with Status("Verifying...", spinner="dots") as status:
+        for name in all_names:
+            time.sleep(0.1)
+
+            img = img_dict.get(name)
+            label = label_dict.get(name)
+
+            img_text = Text(img if img else "Missing", style="green" if img and label else "red")
+            label_text = Text(label if label else "Missing", style="green" if img and label else "red")
+
+            console.print(f"[bold]Verifying:[/bold] [cyan]{img if img else 'Missing'}[/cyan] / [magenta]{label if label else 'Missing'}[/magenta]")
+
+            table.add_row(img_text, label_text)
+            console.print(table)
+
+    name_imgs = set(img_dict.keys())
+    name_labels = set(label_dict.keys())
+
+    if name_imgs != name_labels:
+        missing_labels = name_imgs - name_labels
+        missing_imgs = name_labels - name_imgs
+
+        if missing_labels:
+            console.print(f"[red]These images don't have labels:\n" + "\n".join(missing_labels) + "[/red]")
+            console.print("Please, fix the missing files. Press Enter to return to menu...")
+            input("")
+        if missing_imgs:
+            console.print(f"[red]These labels don't have images:\n" + "\n".join(missing_imgs) + "[/red]")
+            console.print("Please, fix the missing files. Press Enter to return to menu...")
+            input("")
+
+        return False, False, False, True
+
+            
+    elif len(imgs) != len(labels):
+        console.print("\n[red]You have different amount of images and labels.[/red]")
+        console.print("Please, fix the missing files. Press Enter to return to menu...")
+        input("")
+        return False, False, False, True
+    
+    elif name_imgs == name_labels and name_labels == 0:
+        console.print("[red]\nThere is no images or labels in the imgs_and_labels folder[/red]") 
+        console.print("Please, fix the missing files. Press Enter to return to menu...")
+        input("")
+        return False, False, False, True
+    
+    else:
+        return imgs, labels, imgs_and_labels, False
+    
+def get_imgs_and_labels_path():
+    if getattr(sys, 'frozen', False):
+        base_path = os.path.dirname(sys.executable)
+    else:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, "imgs_and_labels")
+   
+
+def main():
+    console.clear()
+    
     while True:
         console.clear()
         menu()
         option = Prompt.ask("\nType an option: ")
+
         if option == "1":
-            UI(imgs, labels, imgs_and_labels)
+            imgs, labels, imgs_and_labels, erro = data_verification()          
+            if erro == False:
+                UI(imgs, labels, imgs_and_labels)
             time.sleep(1)
 
         elif option == "2":
@@ -246,7 +309,6 @@ def main():
                 Console().print("[red]README.md não encontrado.[/red]")
             print("\nPress Enter to continue ...")
             input("")
-            
 
         elif option == "4":
             console.clear()
