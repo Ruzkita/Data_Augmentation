@@ -299,7 +299,13 @@ def main():
 
         elif option == "3":
             console.clear()
-            caminho = os.path.join(os.path.dirname(__file__), "README.md")
+            #caminho = os.path.join(os.path.dirname(__file__), "README.md")
+            if getattr(sys, 'frozen', False):
+                base_path = sys._MEIPASS
+            else:
+                base_path = os.path.dirname(os.path.abspath(__file__))
+
+            caminho = os.path.join(base_path, "README.md")    
             try:
                 with open(caminho, "r", encoding="utf-8") as f:
                     markdown = Markdown(f.read())
