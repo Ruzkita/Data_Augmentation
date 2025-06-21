@@ -1,2 +1,2 @@
 # Data_Augmentation
-Simple python code to help in image data augmentation
+This repository is made to help make data augmentation in images for neural network train, such as YOLO. This automates 5 augmentations for your dataset: Grayscale; Noise Adiction; Change in Bright Level; Blur; and 180º Flip. The augmentation is customizable, meaning you can select which one of these you want to applie in your dataset and manually change the parameters of each one of these trasnformations. In case of any doubt or sujestion, please, open an [issue](https://github.com/Ruzkita/Data_Augmentation/issues) and let me know. If you liked, consider give this repository a star.
