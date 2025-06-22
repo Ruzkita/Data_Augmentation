@@ -2,3 +2,5 @@ numpy
 opencv-python
 rich
 questionary
+random
+shutil

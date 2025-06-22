@@ -12,6 +12,10 @@ from rich.table import Table
 from rich.status import Status
 import time
 import questionary
+import random
+import shutil
+
+#LEMBRETE: ESCREVER O README E COLOCAR PRA TER OPÇÃO DE FAZER A SEPARAÇÂO DAS IMGS E LABELS ENTRE VALIDAÇÂO E TREINO
 
 console = Console()
 
@@ -161,7 +165,7 @@ def UI(imgs, labels, imgs_and_labels):
         new_value = questionary.text(f"Type the new value for {key}:").ask()
         parameters_default[key] = new_value
     
-    with console.status("[bold green]Processing...[/bold green]", spinner="dots"):
+    with console.status("[bold green]Processing...[/bold green]", spinner="line"):
     
         if "Grayscale" in option:
             gray_scale(imgs, labels, imgs_and_labels)
@@ -175,6 +179,24 @@ def UI(imgs, labels, imgs_and_labels):
             blur(imgs, labels, imgs_and_labels, parameters_default["Blur kernell"])
     
     console.print("[bold green]Process finished :)[/bold green]")
+
+    while True:
+        console.clear()
+        console.print("Want to split the dataset into validation/train/test?")
+        option = Prompt.ask("\ny/n: ")
+
+        if option == "y":
+            test_train_validation(imgs_and_labels)
+            break
+    
+        if option == "n":
+            break
+    
+        else:
+            console.clear()
+            console.print("[red]Not an option[/red]")
+            time.sleep(1)
+
     return
 
 def menu():
@@ -215,7 +237,7 @@ def data_verification():
     table.add_column("Image", justify="center")
     table.add_column("Label", justify="center")
 
-    with Status("Verifying...", spinner="dots") as status:
+    with Status("Verifying...", spinner="line") as status:
         for name in all_names:
             time.sleep(0.1)
 
@@ -269,9 +291,104 @@ def get_imgs_and_labels_path():
         base_path = os.path.dirname(sys.executable)
     else:
         base_path = os.path.abspath(".")
+    
+    if not os.path.exists(os.path.join(base_path, "imgs_and_labels")):
+        os.makedirs(os.path.join(base_path, "imgs_and_labels"))
 
     return os.path.join(base_path, "imgs_and_labels")
-   
+
+def test_train_validation(imgs_and_labels):
+    content = os.listdir(imgs_and_labels)
+
+    imgs = []
+    labels = []
+
+    for file in content:
+        name, ext = os.path.splitext(file)
+        ext = ext.lower()
+        full_path = os.path.join(imgs_and_labels, file)
+
+        if ext == '.txt':
+            labels.append((name, full_path))
+        if ext != '.txt' and ext != '.py':
+            imgs.append((name, full_path))
+        
+    labels.sort(key=lambda x: x[0])
+    imgs.sort(key=lambda x: x[0])
+    paired_data = list(zip(imgs, labels))
+    random.shuffle(paired_data)
+
+    default = {
+        "Train": "60",
+        "Validation": "40",
+        "Test": "0"
+    }
+    while True:
+        console.clear()
+        with console.status("[bold green]Processing...[/bold green]", spinner="line"):
+            current_parameters = [f"{key}: {value}" for key, value in default.items()]
+            current_parameters.append("Confirm and Continue")
+
+            choice = questionary.select(
+                "Select the percentage of division:",
+                choices = current_parameters
+            ).ask()
+
+            if choice == "Confirm and Continue":
+                try:
+                    train_pct = int(default["Train"])
+                    test_pct = int(default["Test"])
+                    validation_pct = int(default["Validation"])
+                    if train_pct + test_pct + validation_pct != 100:
+                        console.clear()
+                        console.print("[red]The values must be integers and sum 100[/red]")
+                    else:
+                        console.print("[bold green]Process finished :)[/bold green]")
+                        break
+                except ValueError:
+                    console.clear()
+                    console.print("[red]The values must be integers and sum 100[/red]")
+            key = choice.split(":")[0]
+
+            new_value = questionary.text(f"Type the new value for {key}:").ask()
+            default[key] = new_value
+
+        
+    
+    total_items = len(paired_data)
+    train_count = round(total_items * train_pct / 100)
+    val_count = round(total_items * validation_pct / 100)
+    test_count = total_items - train_count - val_count
+
+    assert train_count + val_count + test_count == total_items, "Erro de arredondamento"
+
+    train_data = paired_data[:train_count]
+    val_data = paired_data[train_count:train_count + val_count]
+    test_data = paired_data[train_count + val_count:]
+
+    base_dir = os.path.dirname(imgs_and_labels)
+
+    folders = {
+        "train": os.path.join(base_dir, "train"),
+        "test": os.path.join(base_dir, "test"),
+        "validation": os.path.join(base_dir, "validation")
+    }
+    for folder in folders.values():
+        os.makedirs(folder, exist_ok=True)
+
+    def save_files(pairs, target_dir):
+        for (img_name, img_path), (label_name, label_path) in pairs:
+            shutil.move(img_path, os.path.join(target_dir, os.path.basename(img_path)))
+            shutil.move(label_path, os.path.join(target_dir, os.path.basename(label_path)))
+
+    save_files(train_data, folders["train"])
+    save_files(val_data, folders["validation"])
+    save_files(test_data, folders["test"])
+
+    console.print(f"[green]Arquivos salvos com sucesso:[/green]")
+    console.print(f"Treinamento: {len(train_data)}")
+    console.print(f"Validação: {len(val_data)}")
+    console.print(f"Teste: {len(test_data)}")
 
 def main():
     console.clear()
