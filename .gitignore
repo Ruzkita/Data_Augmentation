@@ -12,6 +12,9 @@ __pycache__/
 # Pasta build/dist do PyInstaller
 build/
 dist/
+train/
+validation/
+
 
 # Arquivo spec do PyInstaller
 *.spec

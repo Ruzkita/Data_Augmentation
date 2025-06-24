@@ -15,7 +15,6 @@ import questionary
 import random
 import shutil
 
-#LEMBRETE: ESCREVER O README E COLOCAR PRA TER OPÇÃO DE FAZER A SEPARAÇÂO DAS IMGS E LABELS ENTRE VALIDAÇÂO E TREINO
 
 console = Console()
 
